@@ -1,25 +1,24 @@
 from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.db.models import Count, Q
 from datetime import date, timedelta
 
 from Schema.models import Employee, Attendance, Department
 from api.serializers import EmployeeSerializer, AttendanceSerializer, DepartmentSerializer
+from utilities.core import api_response, get_error_message
 
 class DepartmentListCreateView(APIView):
     def get(self, request):
         departments = Department.objects.all().order_by("-created_at")
         serializer = DepartmentSerializer(departments, many=True)
-        return Response(serializer.data)
+        return api_response(True, 200, "Departments retrieved successfully.", data=serializer.data)
 
     def post(self, request):
         serializer = DepartmentSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return api_response(True, 201, "Department created successfully.", data=serializer.data)
+        return api_response(False, 400, get_error_message(serializer.errors), errors=serializer.errors)
 
 class DepartmentDetailView(APIView):
     def put(self, request, pk):
@@ -27,15 +26,15 @@ class DepartmentDetailView(APIView):
         serializer = DepartmentSerializer(department, data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return api_response(True, 200, "Department updated successfully.", data=serializer.data)
+        return api_response(False, 400, get_error_message(serializer.errors), errors=serializer.errors)
 
     def delete(self, request, pk):
         department = get_object_or_404(Department, pk=pk)
         if department.employees.exists():
-            return Response({"error": "Cannot delete department with assigned employees."}, status=status.HTTP_400_BAD_REQUEST)
+            return api_response(False, 400, "Cannot delete department with assigned employees.")
         department.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return api_response(True, 200, "Department deleted successfully.")
 
 class EmployeeListCreateView(APIView):
     def get(self, request):
@@ -53,14 +52,14 @@ class EmployeeListCreateView(APIView):
             employees = employees.filter(department__name__icontains=department)
 
         serializer = EmployeeSerializer(employees, many=True)
-        return Response(serializer.data)
+        return api_response(True, 200, "Employees retrieved successfully.", data=serializer.data)
 
     def post(self, request):
         serializer = EmployeeSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return api_response(True, 201, "Employee created successfully.", data=serializer.data)
+        return api_response(False, 400, get_error_message(serializer.errors), errors=serializer.errors)
 
 class EmployeeDetailView(APIView):
     def put(self, request, pk):
@@ -69,8 +68,8 @@ class EmployeeDetailView(APIView):
         serializer = EmployeeSerializer(employee, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return api_response(True, 200, "Employee updated successfully.", data=serializer.data)
+        return api_response(False, 400, get_error_message(serializer.errors), errors=serializer.errors)
 
     def delete(self, request, pk):
         employee = get_object_or_404(Employee, pk=pk)
@@ -78,11 +77,11 @@ class EmployeeDetailView(APIView):
 
         if hard_delete:
             employee.delete()
+            return api_response(True, 200, "Employee permanently deleted.")
         else:
             employee.is_active = False
             employee.save()
-
-        return Response(status=status.HTTP_204_NO_CONTENT)
+            return api_response(True, 200, "Employee deactivated safely.")
 
 class AttendanceListCreateView(APIView):
     def get(self, request):
@@ -98,14 +97,14 @@ class AttendanceListCreateView(APIView):
             attendances = attendances.filter(date=filter_date)
 
         serializer = AttendanceSerializer(attendances, many=True)
-        return Response(serializer.data)
+        return api_response(True, 200, "Attendance records retrieved successfully.", data=serializer.data)
 
     def post(self, request):
         serializer = AttendanceSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return api_response(True, 201, "Attendance marked successfully.", data=serializer.data)
+        return api_response(False, 400, get_error_message(serializer.errors), errors=serializer.errors)
 
 class DashboardStatsView(APIView):
     def get(self, request):
@@ -114,7 +113,7 @@ class DashboardStatsView(APIView):
         present_today = Attendance.objects.filter(date=today, status="Present").count()
         absent_today = Attendance.objects.filter(date=today, status="Absent").count()
 
-        return Response({
+        return api_response(True, 200, "Dashboard stats generated.", data={
             "total_employees": total_employees,
             "present_today": present_today,
             "absent_today": absent_today,
@@ -145,7 +144,7 @@ class AnalyticsDashboardView(APIView):
             a_count = Attendance.objects.filter(date=d, status="Absent").count()
             weekly_trend.append({"date": d.strftime("%m/%d"), "present": p_count, "absent": a_count})
 
-        return Response({
+        return api_response(True, 200, "Analytics retrieved.", data={
             "today_attendance": today_attendance,
             "department_distribution": department_distribution,
             "weekly_trend": weekly_trend
@@ -184,4 +183,4 @@ class ReportSummaryView(APIView):
                 "attendance_percent": attendance_percent
             })
 
-        return Response(report_data)
+        return api_response(True, 200, "Report generated successfully.", data=report_data)
